@@ -328,3 +328,5 @@ ASALocalRun/
 
 # MFractors (Xamarin productivity tool) working folder 
 .mfractor/
+/dotnet_keylogger.csproj
+/dotnet_keylogger.sln
