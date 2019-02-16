@@ -96,7 +96,6 @@ namespace dotnet_keylogger
 
         public static string OutCSVHeader()
         {
-            /// 0xSCROLL.NUM.CAPS.LEFT_ALT.RIGHT_ALT.LEFT_SHIFT.RIGHT_SHIFT.WIN
             string[] elements = {
                 "timestamp",
                 "last_key_latency",
