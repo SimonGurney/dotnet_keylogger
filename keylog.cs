@@ -37,6 +37,7 @@ namespace dotnet_keylogger
         public string WindowName { get; }
         public bool IsCapital { get; }
         public bool init { get; }
+        public static string delimeter = ",";
 
         public bool IsItCapital()
         {
@@ -90,7 +91,33 @@ namespace dotnet_keylogger
                 this.WindowName,
                 this.IsCapital.ToString()
             };
-            return (String.Join(",", elements) + "\r\n");
+            return (String.Join(keylog.delimeter, elements));
         }   
+
+        public static string OutCSVHeader()
+        {
+            /// 0xSCROLL.NUM.CAPS.LEFT_ALT.RIGHT_ALT.LEFT_SHIFT.RIGHT_SHIFT.WIN
+            string[] elements = {
+                "timestamp",
+                "last_key_latency",
+                "vkcode",
+                "key",
+                "scan_code",
+                "raw_flags",
+                "modifier_flags",
+                "scroll_lock",
+                "num_lock",
+                "caps_lock",
+                "left_alt_key",
+                "right_alt_key",
+                "left_shift_key",
+                "right_shift_key",
+                "windows_key",
+                "window_title",
+                "window_name",
+                "is_capital"
+            };
+            return (String.Join(keylog.delimeter,elements));
+        }
     }
 }

