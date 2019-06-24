@@ -291,6 +291,4 @@ namespace dotnet_keylogger
             [DllImport("user32.dll")]
         static extern short GetKeyState(VirtualKeyStates nVirtKey);
     }
-
-
 }

@@ -37,7 +37,27 @@ namespace dotnet_keylogger
         public string WindowName { get; }
         public bool IsCapital { get; }
         public bool init { get; }
-        public static string delimeter = ",";
+        public static char delimeter = ',';
+        public static string[] CSV_elements = {
+                "timestamp",
+                "last_key_latency",
+                "vkcode",
+                "key",
+                "scan_code",
+                "raw_flags",
+                "modifier_flags",
+                "scroll_lock",
+                "num_lock",
+                "caps_lock",
+                "left_alt_key",
+                "right_alt_key",
+                "left_shift_key",
+                "right_shift_key",
+                "windows_key",
+                "window_title",
+                "window_name",
+                "is_capital"
+            };
 
         public bool IsItCapital()
         {
@@ -61,11 +81,40 @@ namespace dotnet_keylogger
             this.Key = ((Keys)this.vkCode).ToString();
             this.ScanCode = Marshal.ReadInt32(lParam + 4);
             this.Raw_flags = Marshal.ReadInt32(lParam + 8);
-            this.Timestamp = Timestamp;
             this.Flags = flags;
             this.IsCapital = this.IsItCapital();
             this.WindowTitle = WindowTitle;
             this.WindowName = WindowName;
+            this.init = true;
+        }
+        public keylog(string CSV_line)
+        {
+            string[] elements = CSV_line.Split(keylog.delimeter);
+            if (elements.Length != keylog.CSV_elements.Length)
+            {
+                throw new System.ArgumentException("CSV line no good");
+            }
+
+            this.Timestamp = Convert.ToDateTime(elements[0]);
+            this.LastKeyLatency = (long) Int32.Parse(elements[1]);
+            this.vkCode = Int32.Parse(elements[2]);
+            this.Key = elements[3];
+            this.ScanCode = Int32.Parse(elements[4]);
+            this.Raw_flags = Int32.Parse(elements[5]);
+            this.Flags = (byte) Int32.Parse(elements[6]);
+            /*
+             * int i = elements[7].Equals("True")? 1:0; this.Flags = (byte) (this.Flags + (i >> 7));
+            i = elements[8].Equals("True") ? 1 : 0; this.Flags = (byte)(this.Flags + (i >> 6));
+            i = elements[9].Equals("True") ? 1 : 0; this.Flags = (byte)(this.Flags + (i >> 5));
+            i = elements[10].Equals("True") ? 1 : 0; this.Flags = (byte)(this.Flags + (i >> 4));
+            i = elements[11].Equals("True") ? 1 : 0; this.Flags = (byte)(this.Flags + (i >> 3));
+            i = elements[12].Equals("True") ? 1 : 0; this.Flags = (byte)(this.Flags + (i >> 2));
+            i = elements[13].Equals("True") ? 1 : 0; this.Flags = (byte)(this.Flags + (i >> 1));
+            i = elements[14].Equals("True") ? 1 : 0; this.Flags = (byte)(this.Flags + (i >> 0));
+            */
+            this.WindowTitle = elements[15];
+            this.WindowName = elements[16];
+            this.IsCapital = elements[17] == "True"; // if not "true" then false
             this.init = true;
         }
 
@@ -91,32 +140,12 @@ namespace dotnet_keylogger
                 this.WindowName,
                 this.IsCapital.ToString()
             };
-            return (String.Join(keylog.delimeter, elements));
+            return (String.Join(keylog.delimeter.ToString(), elements));
         }   
 
         public static string OutCSVHeader()
         {
-            string[] elements = {
-                "timestamp",
-                "last_key_latency",
-                "vkcode",
-                "key",
-                "scan_code",
-                "raw_flags",
-                "modifier_flags",
-                "scroll_lock",
-                "num_lock",
-                "caps_lock",
-                "left_alt_key",
-                "right_alt_key",
-                "left_shift_key",
-                "right_shift_key",
-                "windows_key",
-                "window_title",
-                "window_name",
-                "is_capital"
-            };
-            return (String.Join(keylog.delimeter,elements));
+            return (String.Join(keylog.delimeter.ToString(),keylog.CSV_elements));
         }
     }
 }
