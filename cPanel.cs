@@ -25,12 +25,33 @@ namespace dotnet_keylogger
 
         private void label1_Click(object sender, EventArgs e)
         {
-            this.Text = "Why stop, we are having such fun?";
+            label1.Text = "Hi, stop clicking random stuff";
         }
 
         private void button2_Click(object sender, EventArgs e)
         {
             this.Close();
         }
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (CloseCancel() == false)
+            {
+                e.Cancel = true;
+            };
+        }
+        public static bool CloseCancel()
+        {
+            const string message = "Are you sure that you would like to quit your session?";
+            const string caption = "Close me down";
+            var result = MessageBox.Show(message, caption,
+                                         MessageBoxButtons.YesNo,
+                                         MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+                return true;
+            else
+                return false;
+        }
+
     }
 }
